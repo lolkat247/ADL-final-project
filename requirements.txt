@@ -1,0 +1,29 @@
+# Core
+torch>=2.0.0
+torchaudio>=2.0.0
+numpy
+scipy
+
+# Audio processing
+librosa
+soundfile
+resampy
+
+# Real-time audio (optional)
+sounddevice  # or pyaudio if preferred
+webrtcvad    # for optional voice activity detection
+
+# Training & Visualization
+tqdm
+matplotlib
+tensorboard
+
+# Notebook
+ipykernel
+jupyter
+
+# For HiFi-GAN (may depend on config)
+PyYAML
+
+# Speaker Embedding
+speechbrain
