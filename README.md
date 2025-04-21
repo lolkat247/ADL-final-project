@@ -11,7 +11,9 @@ The system consists of three main components:
    - Decoder: Reconstructs Mel-spectrograms using content + target speaker embedding
 
 2. **Speaker Embeddings**  
-   - TODO
+   - We use ECAPA-TDNN from SpeechBrain to extract speaker embeddings from a short reference clip of the target voice.
+   - This allows the model to generate Mel-spectrograms that match the voice characteristics of any speaker given just a few seconds of their speech.
+   - See `common/speaker_embed.py` for the implementation.
 
 3. **HiFi-GAN Vocoder**  
    - Converts Mel-spectrograms back into high-quality audio
@@ -41,12 +43,10 @@ voice-conversion/
 ### Clone Repo & Install Dependencies
 
 ```bash
-git clone
-cd 
+git clone https://github.com/yourusername/voice-conversion.git
+cd voice-conversion
 pip install -r requirements.txt
 ```
-TODO Put git link in here and dir
-
 ### Train the Autoencoder
 
 Open and run the training notebook: `training/training_loop.ipynb`
