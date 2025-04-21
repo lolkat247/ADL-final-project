@@ -1,31 +1,51 @@
+# inference/inference_pipeline.py
+
 import torch
-from common.mel_spectrogram import MelSpectrogram
-from common.model import VoiceAutoencoder
-from inference.vocoder import HiFiGAN
-from common.speaker_embed import DummySpeakerEmbedder
 import torchaudio
+from common.model import VoiceAutoencoder
+from common.mel_spectrogram import MelSpectrogram
+from common.speaker_embed import ECAPASpeakerEmbedder
+from inference.vocoder import HiFiGAN
+
 
 class InferencePipeline:
-    def __init__(self, ae_checkpoint, vocoder_checkpoint, device='cpu'):
+    def __init__(self, ae_ckpt_path, hifi_ckpt_path, device='cuda'):
         self.device = device
-        self.mel_transform = MelSpectrogram()
+
+        # Load autoencoder
         self.model = VoiceAutoencoder().to(device)
-        self.model.load_state_dict(torch.load(ae_checkpoint))
+        self.model.load_state_dict(torch.load(ae_ckpt_path, map_location=device))
         self.model.eval()
 
-        self.vocoder = HiFiGAN(vocoder_checkpoint, device)
-        self.embedder = DummySpeakerEmbedder()
+        # Load vocoder
+        self.vocoder = HiFiGAN(hifi_ckpt_path, device)
 
-    def convert(self, audio, source_sr, target_speaker_id):
-        if isinstance(audio, str):
-            audio, source_sr = torchaudio.load(audio)
+        # Feature extractor and speaker embedder
+        self.mel_extractor = MelSpectrogram().to(device)
+        self.embedder = ECAPASpeakerEmbedder(device=device)
 
-        audio = torchaudio.functional.resample(audio, source_sr, 22050).to(self.device)
-        mel = self.mel_transform(audio).transpose(1, 2)  # (B, T, F)
-        embed = self.embedder(target_speaker_id).to(self.device)
-
+    def convert(self, input_wav, ref_wav):
+        """
+        input_wav: path to source speaker audio file
+        ref_wav: path to target speaker reference audio
+        """
         with torch.no_grad():
-            output_mel = self.model(mel, embed)
-            audio_out = self.vocoder(output_mel.transpose(1, 2))
+            # Load and process input audio
+            wav, sr = torchaudio.load(input_wav)
+            wav = torchaudio.functional.resample(wav, sr, 22050)
+            wav = wav.to(self.device)
 
-        return audio_out
+            # Extract Mel
+            mel = self.mel_extractor(wav).squeeze(0).transpose(0, 1).unsqueeze(0)  # [1, T, 80]
+
+            # Get speaker embedding
+            speaker_embedding = self.embedder.extract_embedding(ref_wav).unsqueeze(0)  # [1, 192]
+
+            # Convert Mel
+            mel_out = self.model(mel, speaker_embedding)  # [1, T, 80]
+            mel_out = mel_out.transpose(1, 2)  # [1, 80, T]
+
+            # Generate audio
+            audio_out = self.vocoder(mel_out)  # [1, T]
+
+        return audio_out.squeeze(0).cpu()

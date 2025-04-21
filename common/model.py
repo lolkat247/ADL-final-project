@@ -1,34 +1,69 @@
+# common/model.py
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-class Encoder(nn.Module):
-    def __init__(self, input_dim=80, hidden_dim=256, num_layers=2):
+class ContentEncoder(nn.Module):
+    def __init__(self, mel_dim=80, hidden_dim=256):
         super().__init__()
-        self.rnn = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
+        self.net = nn.Sequential(
+            nn.Conv1d(mel_dim, hidden_dim, kernel_size=5, padding=4, dilation=2),  # causal-style
+            nn.ReLU(),
+            nn.Conv1d(hidden_dim, hidden_dim, kernel_size=5, padding=4, dilation=2),
+            nn.ReLU(),
+        )
 
-    def forward(self, x):
-        _, (hidden, _) = self.rnn(x)
-        return hidden[-1]
+    def forward(self, mel):
+        mel = mel.transpose(1, 2)  # [B, mel_dim, T]
+        content = self.net(mel)  # [B, hidden_dim, T]
+        return content.transpose(1, 2)  # [B, T, hidden_dim]
+
+
+class ContentAttention(nn.Module):
+    def __init__(self, content_dim, speaker_dim, attn_dim):
+        super().__init__()
+        self.content_proj = nn.Linear(content_dim, attn_dim)
+        self.speaker_proj = nn.Linear(speaker_dim, attn_dim)
+        self.energy_proj = nn.Linear(attn_dim, 1)
+
+    def forward(self, content, speaker_embedding):
+        # content: [B, T, C], speaker_embedding: [B, S]
+        B, T, _ = content.size()
+        speaker_exp = self.speaker_proj(speaker_embedding).unsqueeze(1).expand(-1, T, -1)
+        content_proj = self.content_proj(content)
+        energy = torch.tanh(content_proj + speaker_exp)  # [B, T, attn_dim]
+        attn_weights = torch.softmax(self.energy_proj(energy), dim=1)  # [B, T, 1]
+        attended = content * attn_weights  # weighted content
+        return attended
+
 
 class Decoder(nn.Module):
-    def __init__(self, hidden_dim=256, speaker_dim=128, output_dim=80, num_layers=2):
+    def __init__(self, input_dim, mel_dim=80):
         super().__init__()
-        self.input_fc = nn.Linear(hidden_dim + speaker_dim, hidden_dim)
-        self.rnn = nn.LSTM(hidden_dim, output_dim, num_layers, batch_first=True)
+        self.net = nn.Sequential(
+            nn.Conv1d(input_dim, 256, kernel_size=5, padding=2),
+            nn.ReLU(),
+            nn.Conv1d(256, 256, kernel_size=5, padding=2),
+            nn.ReLU(),
+            nn.Conv1d(256, mel_dim, kernel_size=5, padding=2),
+        )
 
-    def forward(self, content, speaker_embed, seq_len):
-        x = torch.cat([content, speaker_embed], dim=1).unsqueeze(1).repeat(1, seq_len, 1)
-        x = self.input_fc(x)
-        output, _ = self.rnn(x)
-        return output
+    def forward(self, x):
+        x = x.transpose(1, 2)
+        mel_out = self.net(x)
+        return mel_out.transpose(1, 2)
+
 
 class VoiceAutoencoder(nn.Module):
-    def __init__(self, input_dim=80, hidden_dim=256, speaker_dim=128):
+    def __init__(self, mel_dim=80, content_dim=256, speaker_dim=192, attn_dim=128):
         super().__init__()
-        self.encoder = Encoder(input_dim, hidden_dim)
-        self.decoder = Decoder(hidden_dim, speaker_dim, input_dim)
+        self.encoder = ContentEncoder(mel_dim, content_dim)
+        self.attn = ContentAttention(content_dim, speaker_dim, attn_dim)
+        self.decoder = Decoder(content_dim, mel_dim)
 
-    def forward(self, x, speaker_embed):
-        content = self.encoder(x)
-        output = self.decoder(content, speaker_embed, x.size(1))
-        return output
+    def forward(self, mel, speaker_embedding):
+        content = self.encoder(mel)  # [B, T, C]
+        attended = self.attn(content, speaker_embedding)  # [B, T, C]
+        mel_out = self.decoder(attended)  # [B, T, mel_dim]
+        return mel_out
