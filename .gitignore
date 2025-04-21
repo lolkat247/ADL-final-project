@@ -174,8 +174,12 @@ cython_debug/
 .pypirc
 
 # Datasets
-train/data/
+data/
 
 # Weird files
 *.zip
 *.ckpt
+*.pt
+
+# Cache
+cache/
