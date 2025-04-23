@@ -1,5 +1,5 @@
 import torch
-from models.hifigan import Generator
+from models.hifigan.models import Generator
 
 class HiFiGAN:
     def __init__(self, checkpoint_path, device='cpu'):
