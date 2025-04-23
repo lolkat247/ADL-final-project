@@ -106,7 +106,6 @@ def main():
     for epoch in range(3):
         model.train()
         total_loss = 0.0
-        total_cosine = 0.0
         num_batches = 0
         for mel, speaker_ids in tqdm(loader, desc=f"Epoch {epoch}"):
             mel = mel.to(device)
@@ -124,32 +123,10 @@ def main():
 
             total_loss += loss.item()
 
-            # Compute speaker similarity
-            with torch.no_grad():
-                out_wav = output.transpose(1, 2)  # [B, 80, T]
-
-                # Convert mel to waveform using Griffin-Lim
-                import torchaudio.transforms as T
-                griffin_lim = T.GriffinLim(n_fft=1024, hop_length=256).to(device)
-                mel_amp = torch.pow(10.0, out_wav / 20.0).to(device)
-                inv_mel = T.InverseMelScale(n_stft=512, n_mels=80, sample_rate=22050).to(device)
-                spec = inv_mel(mel_amp)
-
-                recons_waveforms = torch.stack([griffin_lim(s) for s in spec])  # [B, T]
-
-                out_embed = torch.stack([
-                    embedder.extract_embedding_from_waveform(waveform.cpu()).squeeze()
-                    for waveform in recons_waveforms
-                ]).to(device)
-
-                cosine_scores = F.cosine_similarity(out_embed, speaker_embeddings, dim=-1)
-                total_cosine += cosine_scores.mean().item()
-
             num_batches += 1
 
         avg_loss = total_loss / num_batches
-        avg_cosine = total_cosine / num_batches
-        print(f"Epoch {epoch}: Avg Loss = {avg_loss:.4f}, Avg Cosine = {avg_cosine:.4f}", flush=True)
+        print(f"Epoch {epoch}: Avg Loss = {avg_loss:.4f}", flush=True)
 
 if __name__ == "__main__":
     main()
