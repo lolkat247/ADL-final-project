@@ -7,6 +7,7 @@ import os
 import zipfile
 import urllib.request
 from tqdm import tqdm
+import torch.nn.functional as F
 
 from common.model import VoiceAutoencoder
 from common.speaker_embed import ECAPASpeakerEmbedder
@@ -97,6 +98,9 @@ def main():
     print("Starting training loop...")
     for epoch in range(20):
         model.train()
+        total_loss = 0.0
+        total_cosine = 0.0
+        num_batches = 0
         for mel, speaker_ids in tqdm(loader, desc=f"Epoch {epoch}"):
             mel = mel.to(device)
             speaker_embeddings = torch.stack([
@@ -111,7 +115,24 @@ def main():
             loss.backward()
             optimizer.step()
 
-        print(f"Epoch {epoch}: Loss = {loss.item():.4f}", flush=True)
+            total_loss += loss.item()
+
+            # Compute speaker similarity
+            with torch.no_grad():
+                out_wav = output.transpose(1, 2)  # [B, 80, T]
+                out_embed = torch.stack([
+                    embedder.extract_embedding_from_mel(mel.cpu()).squeeze()
+                    for mel in out_wav
+                ]).to(device)
+
+                cosine_scores = F.cosine_similarity(out_embed, speaker_embeddings, dim=-1)
+                total_cosine += cosine_scores.mean().item()
+
+            num_batches += 1
+
+        avg_loss = total_loss / num_batches
+        avg_cosine = total_cosine / num_batches
+        print(f"Epoch {epoch}: Avg Loss = {avg_loss:.4f}, Avg Cosine = {avg_cosine:.4f}", flush=True)
 
 if __name__ == "__main__":
     main()

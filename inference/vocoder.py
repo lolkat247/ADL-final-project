@@ -1,6 +1,5 @@
 import torch
-from models.hifigan import Generator  # assuming HiFi-GAN code is in models/
-from utils import load_checkpoint     # utility to load weights
+from models.hifigan.models import Generator
 
 class HiFiGAN:
     def __init__(self, checkpoint_path, device='cpu'):
@@ -14,6 +13,9 @@ class HiFiGAN:
         self.model.eval()
 
     def __call__(self, mel):
+        mel = mel.to(self.device)
+        if mel.dim() == 2:
+            mel = mel.unsqueeze(0)  # add batch dimension
         with torch.no_grad():
             audio = self.model(mel)  # [B, T]
-        return audio
+        return audio.squeeze()
