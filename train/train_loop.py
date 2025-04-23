@@ -60,13 +60,13 @@ def main():
     paths, ids = [], []
 
     # Limit to 10 speakers
-    for speaker_folder in os.listdir(root_dir)[:10]:
+    for speaker_folder in os.listdir(root_dir)[:20]:
         speaker_path = os.path.join(root_dir, speaker_folder)
         if not os.path.isdir(speaker_path): continue
 
         speaker_id = speaker_folder  # e.g., 'p225'
         # Limit to 3 WAV files per speaker
-        wav_files = [f for f in os.listdir(speaker_path) if f.endswith('.wav')][:3]
+        wav_files = [f for f in os.listdir(speaker_path) if f.endswith('.wav')][:30]
         for wav_file in wav_files:
             paths.append(os.path.join(speaker_path, wav_file))
             ids.append(speaker_id)
@@ -98,12 +98,12 @@ def main():
 
     dataset = VoiceDataset(paths, ids)
     # Use batch size 2
-    loader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=collate_fn)
+    loader = DataLoader(dataset, batch_size=20, shuffle=True, collate_fn=collate_fn)
 
     # Training loop
     print("Starting training loop...")
     # Train for 3 epochs
-    for epoch in range(3):
+    for epoch in range(20):
         model.train()
         total_loss = 0.0
         num_batches = 0
