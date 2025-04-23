@@ -130,9 +130,9 @@ def main():
 
                 # Convert mel to waveform using Griffin-Lim
                 import torchaudio.transforms as T
-                griffin_lim = T.GriffinLim(n_fft=1024, hop_length=256)
-                mel_amp = torch.pow(10.0, out_wav / 20.0)
-                inv_mel = T.InverseMelScale(n_stft=512, n_mels=80, sample_rate=22050)
+                griffin_lim = T.GriffinLim(n_fft=1024, hop_length=256).to(device)
+                mel_amp = torch.pow(10.0, out_wav / 20.0).to(device)
+                inv_mel = T.InverseMelScale(n_stft=512, n_mels=80, sample_rate=22050).to(device)
                 spec = inv_mel(mel_amp)
 
                 recons_waveforms = torch.stack([griffin_lim(s) for s in spec])  # [B, T]
