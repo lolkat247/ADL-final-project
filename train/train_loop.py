@@ -59,16 +59,21 @@ def main():
     root_dir = "data/vctk/VCTK-Corpus/wav48"
     paths, ids = [], []
 
-    for speaker_folder in os.listdir(root_dir):
+    # Limit to 10 speakers
+    for speaker_folder in os.listdir(root_dir)[:10]:
         speaker_path = os.path.join(root_dir, speaker_folder)
         if not os.path.isdir(speaker_path): continue
 
         speaker_id = speaker_folder  # e.g., 'p225'
-        wav_files = [f for f in os.listdir(speaker_path) if f.endswith('.wav')]
+        # Limit to 3 WAV files per speaker
+        wav_files = [f for f in os.listdir(speaker_path) if f.endswith('.wav')][:3]
         for wav_file in wav_files:
             paths.append(os.path.join(speaker_path, wav_file))
             ids.append(speaker_id)
         wav_files = [f for f in wav_files if f.endswith('.wav')]
+
+    # Print summary of loaded data
+    print(f"Loaded {len(paths)} samples from {len(set(ids))} speakers.")
 
     # Build reference map: speaker_id -> first wav path
     speaker_to_ref = {}
@@ -92,11 +97,13 @@ def main():
         torch.save(speaker_embeddings_map, embedding_cache_path)
 
     dataset = VoiceDataset(paths, ids)
+    # Use batch size 2
     loader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=collate_fn)
 
     # Training loop
     print("Starting training loop...")
-    for epoch in range(20):
+    # Train for 3 epochs
+    for epoch in range(3):
         model.train()
         total_loss = 0.0
         total_cosine = 0.0
